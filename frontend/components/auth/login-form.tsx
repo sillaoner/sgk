@@ -40,10 +40,13 @@ export function LoginForm() {
     setError(null);
     try {
       const session = await authService.login(values);
+<<<<<<< HEAD
       if (!session.accessToken) {
         throw new Error("Login response did not include access token.");
       }
 
+=======
+>>>>>>> abd55b3 (fixes)
       setSession(session);
       router.replace("/dashboard");
     } catch (err) {

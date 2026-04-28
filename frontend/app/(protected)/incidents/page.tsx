@@ -18,6 +18,10 @@ export default function IncidentsPage() {
   const [updateState, setUpdateState] = useState<Record<string, { description: string; status: IncidentStatus }>>({});
 
   const loadIncidents = async () => {
+<<<<<<< HEAD
+=======
+    setLoading(true);
+>>>>>>> abd55b3 (fixes)
     try {
       setError(null);
       const data = await incidentService.listIncidents();
@@ -38,6 +42,10 @@ export default function IncidentsPage() {
 
   const handleCreate = async (payload: Parameters<typeof incidentService.createIncident>[0]) => {
     try {
+<<<<<<< HEAD
+=======
+      setError(null);
+>>>>>>> abd55b3 (fixes)
       await incidentService.createIncident(payload);
       await loadIncidents();
     } catch (err) {
@@ -52,6 +60,10 @@ export default function IncidentsPage() {
     }
 
     try {
+<<<<<<< HEAD
+=======
+      setError(null);
+>>>>>>> abd55b3 (fixes)
       await incidentService.updateIncident(id, payload);
       await loadIncidents();
     } catch (err) {

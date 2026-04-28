@@ -11,10 +11,25 @@ import type { CreateIncidentInput, IncidentType } from "@/types/incident";
 
 const schema = z.object({
   type: z.enum(["accident", "near_miss"]),
+<<<<<<< HEAD
   dateTime: z.string().min(1, "Date/time is required"),
   locationId: z.string().min(1, "Location is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   photoUrls: z.string().min(3, "At least one photo URL is required"),
+=======
+  dateTime: z
+    .string()
+    .trim()
+    .min(1, "Date/time is required")
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), "Date/time is invalid"),
+  locationId: z.string().trim().uuid("Location ID must be a valid UUID"),
+  description: z.string().trim().min(1, "Description is required"),
+  photoUrls: z
+    .string()
+    .trim()
+    .min(1, "At least one photo URL is required")
+    .refine((value) => parseDelimitedInput(value).length > 0, "At least one photo URL is required"),
+>>>>>>> abd55b3 (fixes)
   healthDataJson: z.string().optional()
 });
 
@@ -29,9 +44,17 @@ export function IncidentForm({ onSubmit }: IncidentFormProps) {
     register,
     handleSubmit,
     reset,
+<<<<<<< HEAD
     formState: { errors, isSubmitting }
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+=======
+    formState: { errors, isSubmitting, isValid }
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    mode: "onChange",
+    reValidateMode: "onChange",
+>>>>>>> abd55b3 (fixes)
     defaultValues: {
       type: "near_miss",
       dateTime: "",
@@ -46,10 +69,17 @@ export function IncidentForm({ onSubmit }: IncidentFormProps) {
     await onSubmit({
       type: values.type as IncidentType,
       dateTime: new Date(values.dateTime).toISOString(),
+<<<<<<< HEAD
       locationId: values.locationId,
       description: values.description,
       photoUrls: parseDelimitedInput(values.photoUrls),
       healthDataJson: values.healthDataJson
+=======
+      locationId: values.locationId.trim(),
+      description: values.description.trim(),
+      photoUrls: parseDelimitedInput(values.photoUrls),
+      healthDataJson: values.healthDataJson?.trim() || undefined
+>>>>>>> abd55b3 (fixes)
     });
 
     reset();
@@ -111,7 +141,11 @@ export function IncidentForm({ onSubmit }: IncidentFormProps) {
         <Textarea id="healthDataJson" {...register("healthDataJson")} />
       </div>
 
+<<<<<<< HEAD
       <Button disabled={isSubmitting} type="submit">
+=======
+      <Button disabled={isSubmitting || !isValid} type="submit">
+>>>>>>> abd55b3 (fixes)
         {isSubmitting ? "Creating incident..." : "Create Incident"}
       </Button>
     </form>

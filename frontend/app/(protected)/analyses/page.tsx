@@ -16,6 +16,10 @@ export default function AnalysesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
+<<<<<<< HEAD
+=======
+    setLoading(true);
+>>>>>>> abd55b3 (fixes)
     try {
       setError(null);
       const data = await analysisService.listAnalyses();

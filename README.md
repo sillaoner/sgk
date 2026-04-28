@@ -1,3 +1,9 @@
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+# SGK
+=======
+>>>>>>> abd55b3 (fixes)
 # MetalForm OHS Platform
 
 Full-stack OHS incident management platform with:
@@ -58,3 +64,7 @@ npm run build
 ## Deployment
 
 See [deployment_guide.md](/Users/silaoner/sgk/docs/deployment_guide.md).
+<<<<<<< HEAD
+=======
+>>>>>>> 6e0df28 (first commit)
+>>>>>>> abd55b3 (fixes)

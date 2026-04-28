@@ -73,6 +73,14 @@ public sealed class OhsDbContext : DbContext
         modelBuilder.Entity<RootCauseAnalysis>(builder =>
         {
             builder.ToTable("root_cause_analyses");
+<<<<<<< HEAD
+=======
+            builder.Property(x => x.Cause1).HasColumnName("cause_1");
+            builder.Property(x => x.Cause2).HasColumnName("cause_2");
+            builder.Property(x => x.Cause3).HasColumnName("cause_3");
+            builder.Property(x => x.Cause4).HasColumnName("cause_4");
+            builder.Property(x => x.Cause5).HasColumnName("cause_5");
+>>>>>>> abd55b3 (fixes)
             builder.Property(x => x.Category)
                 .HasColumnType("analysis_category");
             builder.Property(x => x.FishboneJson).HasConversion(jsonDocConverter);
