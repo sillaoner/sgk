@@ -56,17 +56,10 @@ public sealed class AuthController : ControllerBase
 
         var issuer = _configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is missing.");
         var audience = _configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience is missing.");
-<<<<<<< HEAD
-        var key = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing.");
-        if (key.Length < 32)
-        {
-            throw new InvalidOperationException("Jwt:Key must be at least 32 characters (256 bits).");
-=======
         var key = _configuration["Jwt:SigningKey"] ?? throw new InvalidOperationException("Jwt:SigningKey is missing.");
         if (string.IsNullOrWhiteSpace(key) || key.Length < 32)
         {
             throw new InvalidOperationException("Jwt:SigningKey must be at least 32 characters (256 bits).");
->>>>>>> abd55b3 (fixes)
         }
 
         var roleValue = user.Role.ToString().ToLowerInvariant();

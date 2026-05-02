@@ -6,11 +6,7 @@ export interface AuthUser {
   id: string;
   fullName: string;
   role: UserRole;
-<<<<<<< HEAD
-  departmentName?: string;
-=======
   departmentName: string | null;
->>>>>>> abd55b3 (fixes)
 }
 
 export interface LoginRequest {

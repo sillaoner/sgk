@@ -1,29 +1,133 @@
 import { getCache, setCache } from "@/services/offline/cache";
-import { apiClient } from "@/services/api/client";
-<<<<<<< HEAD
-=======
+import { env } from "@/lib/env";
+import { getToken } from "@/services/auth/token-storage";
 import { debugApiResponse, ensureArrayResponse, toErrorWithFallback } from "@/services/api/response-utils";
->>>>>>> abd55b3 (fixes)
 import type { CreateIncidentInput, Incident, UpdateIncidentInput } from "@/types/incident";
 
 const INCIDENTS_CACHE_KEY = "incidents:list";
 
-interface IncidentDraftResponse {
-  id: string;
+type IncidentTypeValue = CreateIncidentInput["type"];
+type IncidentStatusValue = NonNullable<UpdateIncidentInput["status"]>;
+
+function toIso(date: string): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) {
+    throw new Error("Invalid date");
+  }
+
+  return d.toISOString();
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseApiError(status: number, raw: string): string {
+  if (!raw) {
+    return `Request failed (${status}).`;
+  }
+
+  try {
+    const json = JSON.parse(raw) as unknown;
+
+    if (isPlainObject(json)) {
+      const direct = json.error ?? json.message ?? json.detail ?? json.title;
+      if (typeof direct === "string" && direct.trim().length > 0) {
+        return direct;
+      }
+
+      const errors = json.errors;
+      if (isPlainObject(errors)) {
+        for (const value of Object.values(errors)) {
+          if (Array.isArray(value)) {
+            const first = value.find((item) => typeof item === "string" && item.trim().length > 0);
+            if (typeof first === "string") {
+              return first;
+            }
+          }
+
+          if (typeof value === "string" && value.trim().length > 0) {
+            return value;
+          }
+        }
+      }
+    }
+  } catch {
+    // Fallback to plain text response.
+  }
+
+  return raw.length <= 240 ? raw : `Request failed (${status}).`;
+}
+
+function normalizeIncidentType(rawType: unknown): IncidentTypeValue {
+  if (typeof rawType === "string") {
+    const normalized = rawType.replace(/\s+/g, "");
+    if (normalized === "NearMiss" || normalized === "Accident") {
+      return normalized;
+    }
+  }
+
+  if (isPlainObject(rawType) && typeof rawType.value === "string") {
+    return normalizeIncidentType(rawType.value);
+  }
+
+  throw new Error("Type must be a valid enum name (NearMiss or Accident).");
+}
+
+function normalizeIncidentStatus(rawStatus: unknown): IncidentStatusValue {
+  if (typeof rawStatus === "string") {
+    const normalized = rawStatus.replace(/\s+/g, "").toLowerCase();
+    if (normalized === "open") {
+      return "Open";
+    }
+
+    if (normalized === "analysis") {
+      return "Analysis";
+    }
+
+    if (normalized === "closed") {
+      return "Closed";
+    }
+  }
+
+  if (isPlainObject(rawStatus) && typeof rawStatus.value === "string") {
+    return normalizeIncidentStatus(rawStatus.value);
+  }
+
+  throw new Error("Status must be a valid enum name (Open, Analysis, Closed).");
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export const incidentService = {
   async listIncidents(): Promise<Incident[]> {
     try {
-<<<<<<< HEAD
-      const response = await apiClient.get<Incident[]>("/incidents");
-      setCache(INCIDENTS_CACHE_KEY, response.data, 60_000);
-      return response.data;
-    } catch {
-      return getCache<Incident[]>(INCIDENTS_CACHE_KEY) ?? [];
-=======
-      const response = await apiClient.get<unknown>("/incidents");
-      const incidents = ensureArrayResponse<Incident>(response.data, "/incidents");
+      const token = getToken();
+      if (!token) {
+        throw new Error("Unauthorized. Please sign in again.");
+      }
+
+      const response = await fetch(`${env.apiBaseUrl}/incidents`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const raw = await response.text();
+        throw new Error(parseApiError(response.status, raw));
+      }
+
+      const incidents = ensureArrayResponse<Incident>(await response.json(), "/incidents");
 
       debugApiResponse("incidents.list.success", {
         status: response.status,
@@ -40,69 +144,152 @@ export const incidentService = {
       }
 
       throw toErrorWithFallback(error, "Could not load incidents.");
->>>>>>> abd55b3 (fixes)
     }
   },
 
   async createIncident(input: CreateIncidentInput): Promise<Incident> {
-<<<<<<< HEAD
-    const draft = await apiClient.post<IncidentDraftResponse>("/incidents/drafts", {
-      type: input.type,
-      dateTime: input.dateTime,
-      description: input.description,
-      healthDataJson: input.healthDataJson
-    });
-
-    await apiClient.put(`/incidents/drafts/${draft.data.id}/details`, {
-      locationId: input.locationId,
-      description: input.description,
-      dateTime: input.dateTime
-    });
-
-    await apiClient.put(`/incidents/drafts/${draft.data.id}/photos`, {
-      photoUrls: input.photoUrls
-    });
-
-    const submitted = await apiClient.post<Incident>(`/incidents/drafts/${draft.data.id}/submit`);
-    return submitted.data;
-=======
-    debugApiResponse("incidents.create.payload", input);
-
-    try {
-      const draftRequest = {
-        type: input.type,
-        dateTime: input.dateTime,
-        description: input.description,
-        healthDataJson: input.healthDataJson
-      };
-      debugApiResponse("incidents.create.draft.request", draftRequest);
-
-      const draft = await apiClient.post<IncidentDraftResponse>("/incidents/drafts", draftRequest);
-
-      const detailsRequest = {
-        locationId: input.locationId,
-        description: input.description,
-        dateTime: input.dateTime
-      };
-      debugApiResponse("incidents.create.details.request", detailsRequest);
-
-      await apiClient.put(`/incidents/drafts/${draft.data.id}/details`, detailsRequest);
-
-      const photosRequest = { photoUrls: input.photoUrls };
-      debugApiResponse("incidents.create.photos.request", photosRequest);
-
-      await apiClient.put(`/incidents/drafts/${draft.data.id}/photos`, photosRequest);
-
-      const submitted = await apiClient.post<Incident>(`/incidents/drafts/${draft.data.id}/submit`);
-      return submitted.data;
-    } catch (error) {
-      throw toErrorWithFallback(error, "Could not create incident.");
+    if (!input.type) {
+      throw new Error("Type is required");
     }
->>>>>>> abd55b3 (fixes)
+
+    if (!input.occurredAt) {
+      throw new Error("Date / Time is required");
+    }
+
+    const token = getToken();
+    if (!token) {
+      throw new Error("Unauthorized. Please sign in again.");
+    }
+
+    const healthDataJson = input.healthDataJson?.trim() ?? "";
+    if (healthDataJson) {
+      try {
+        JSON.parse(healthDataJson);
+      } catch {
+        throw new Error("Health Data JSON must be valid JSON.");
+      }
+    }
+
+    const normalizedPhotoUrls = (input.photoUrls ?? [])
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0);
+
+    for (const url of normalizedPhotoUrls) {
+      if (!isValidHttpUrl(url)) {
+        throw new Error(`Invalid photo URL: ${url}`);
+      }
+    }
+
+    const payload = {
+      type: normalizeIncidentType(input.type as unknown),
+      occurredAt: toIso(input.occurredAt),
+      locationId: input.locationId ?? null,
+      description: input.description?.trim() ? input.description.trim() : null,
+      healthDataJson: healthDataJson || null,
+      photoUrls: Array.from(new Set(normalizedPhotoUrls))
+    };
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("incident payload", payload);
+    }
+
+    const response = await fetch(`${env.apiBaseUrl}/incidents/drafts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const raw = await response.text();
+      throw new Error(parseApiError(response.status, raw));
+    }
+
+    const incident = (await response.json()) as Incident;
+    return incident;
+  },
+
+  async uploadImages(files: File[]): Promise<string[]> {
+    if (!files.length) {
+      return [];
+    }
+
+    const token = getToken();
+    if (!token) {
+      throw new Error("Unauthorized. Please sign in again.");
+    }
+
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+
+    const response = await fetch(`${env.apiBaseUrl}/uploads/images`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const raw = await response.text();
+      throw new Error(parseApiError(response.status, raw));
+    }
+
+    const json = (await response.json()) as { urls?: unknown };
+    if (!json.urls || !Array.isArray(json.urls)) {
+      throw new Error("Upload response is invalid.");
+    }
+
+    return json.urls.filter((url): url is string => typeof url === "string" && url.length > 0);
   },
 
   async updateIncident(id: string, input: UpdateIncidentInput): Promise<Incident> {
-    const response = await apiClient.put<Incident>(`/incidents/${id}`, input);
-    return response.data;
+    if (!id || !/^[0-9a-fA-F-]{36}$/.test(id)) {
+      throw new Error("Invalid incident id.");
+    }
+
+    const token = getToken();
+    if (!token) {
+      throw new Error("Unauthorized. Please sign in again.");
+    }
+
+    const payload: { description?: string; status?: IncidentStatusValue } = {};
+
+    const normalizedDescription = input.description?.trim();
+    if (normalizedDescription) {
+      payload.description = normalizedDescription;
+    }
+
+    if (input.status) {
+      payload.status = normalizeIncidentStatus(input.status);
+    }
+
+    if (!payload.description && !payload.status) {
+      throw new Error("No fields provided for update.");
+    }
+
+    const statusOnlyUpdate = Boolean(payload.status) && !payload.description;
+    const endpoint = statusOnlyUpdate ? `${env.apiBaseUrl}/incidents/${id}/status` : `${env.apiBaseUrl}/incidents/${id}`;
+    const body = statusOnlyUpdate ? { status: payload.status } : payload;
+
+    const response = await fetch(endpoint, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const raw = await response.text();
+      throw new Error(parseApiError(response.status, raw));
+    }
+
+    return (await response.json()) as Incident;
   }
 };

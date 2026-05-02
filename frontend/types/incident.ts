@@ -1,10 +1,10 @@
-export type IncidentType = "accident" | "near_miss";
-export type IncidentStatus = "open" | "analysis" | "closed";
+export type IncidentType = "Accident" | "NearMiss";
+export type IncidentStatus = "Open" | "Analysis" | "Closed";
 
 export interface Incident {
   id: string;
   type: IncidentType;
-  dateTime: string;
+  occurredAt: string;
   locationId?: string;
   reporterId: string;
   description?: string;
@@ -17,14 +17,14 @@ export interface Incident {
 
 export interface CreateIncidentInput {
   type: IncidentType;
-  dateTime: string;
-  locationId: string;
-  description: string;
-  photoUrls: string[];
+  occurredAt: string;
+  locationId?: string | null;
+  description?: string;
   healthDataJson?: string;
+  photoUrls?: string[];
 }
 
 export interface UpdateIncidentInput {
-  description: string;
+  description?: string | null;
   status?: IncidentStatus;
 }

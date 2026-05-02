@@ -2,10 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-<<<<<<< HEAD
-=======
 import { clearStoredUser, clearToken, setStoredUser, setToken } from "@/services/auth/token-storage";
->>>>>>> abd55b3 (fixes)
 import type { AuthUser, LoginResponse } from "@/types/auth";
 
 interface AuthState {
@@ -42,11 +39,8 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       setSession: (payload) => {
         writeAuthCookies(payload.user);
-<<<<<<< HEAD
-=======
         setToken(payload.accessToken);
         setStoredUser(payload.user);
->>>>>>> abd55b3 (fixes)
         set({
           token: payload.accessToken,
           user: payload.user,
@@ -55,11 +49,8 @@ export const useAuthStore = create<AuthState>()(
       },
       clearSession: () => {
         writeAuthCookies(null);
-<<<<<<< HEAD
-=======
         clearToken();
         clearStoredUser();
->>>>>>> abd55b3 (fixes)
         set({ token: null, user: null, isAuthenticated: false });
       }
     }),

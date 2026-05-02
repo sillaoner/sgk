@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-export const env = {
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api",
-=======
 function trimSlash(value: string) {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
@@ -22,6 +18,5 @@ export const env = {
   apiBaseUrl: getApiBaseUrl(),
   browserApiBaseUrl,
   internalApiBaseUrl,
->>>>>>> abd55b3 (fixes)
   appName: process.env.NEXT_PUBLIC_APP_NAME ?? "MetalForm OHS"
 };

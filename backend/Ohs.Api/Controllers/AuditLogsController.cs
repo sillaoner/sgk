@@ -20,6 +20,8 @@ public sealed class AuditLogsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken cancellationToken)
     {
+        _ = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+
         var logs = await _db.AccessLogs
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)

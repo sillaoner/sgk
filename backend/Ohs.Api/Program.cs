@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
@@ -6,14 +7,25 @@ using Ohs.Api.Contracts;
 using Ohs.Api.Data;
 using Ohs.Api.Domain;
 using Ohs.Api.Services;
+using System.Reflection;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddProblemDetails();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
@@ -47,30 +59,17 @@ builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<IHealthDataCrypto, AesGcmHealthDataCrypto>();
 builder.Services.AddScoped<IPrivacyAuditWriter, PrivacyAuditWriter>();
 
-<<<<<<< HEAD
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is missing.");
-
-if (string.IsNullOrWhiteSpace(jwtKey))
-{
-    throw new InvalidOperationException("Jwt:Key is empty.");
-=======
 var jwtKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException("Jwt:SigningKey is missing.");
 
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
     throw new InvalidOperationException("Jwt:SigningKey is empty.");
->>>>>>> abd55b3 (fixes)
 }
 
 if (jwtKey.Length < 32)
 {
-<<<<<<< HEAD
-    throw new InvalidOperationException($"Jwt:Key must be at least 32 characters (256 bits). Current length: {jwtKey.Length}.");
-=======
     throw new InvalidOperationException($"Jwt:SigningKey must be at least 32 characters (256 bits). Current length: {jwtKey.Length}.");
->>>>>>> abd55b3 (fixes)
 }
 
 builder.Services
@@ -92,100 +91,122 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+var entryAssemblyName = Assembly.GetEntryAssembly()?.GetName().Name;
+var isEfDesignTime = string.Equals(entryAssemblyName, "ef", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(entryAssemblyName, "dotnet-ef", StringComparison.OrdinalIgnoreCase)
+    || AppDomain.CurrentDomain.GetAssemblies()
+        .Any(a => string.Equals(a.GetName().Name, "Microsoft.EntityFrameworkCore.Design", StringComparison.Ordinal));
 
-using (var scope = app.Services.CreateScope())
+if (!isEfDesignTime)
 {
-    var db = scope.ServiceProvider.GetRequiredService<OhsDbContext>();
-<<<<<<< HEAD
-    await db.Database.EnsureCreatedAsync();
-=======
-    var migrations = db.Database.GetMigrations().ToList();
-
-    await db.Database.CanConnectAsync();
-
-    if (migrations.Count > 0)
+    using (var scope = app.Services.CreateScope())
     {
-        app.Logger.LogInformation("Applying {Count} database migrations at startup.", migrations.Count);
-        db.Database.Migrate();
+        var db = scope.ServiceProvider.GetRequiredService<OhsDbContext>();
+        var migrations = db.Database.GetMigrations().ToList();
+
+        await db.Database.CanConnectAsync();
+
+        if (migrations.Count > 0)
+        {
+            app.Logger.LogInformation("Applying {Count} database migrations at startup.", migrations.Count);
+            db.Database.Migrate();
+        }
+        else
+        {
+            await db.Database.EnsureCreatedAsync();
+        }
+
+        await DatabaseStartupValidator.ValidateAsync(db, app.Logger, CancellationToken.None);
+
+        if (app.Environment.IsDevelopment())
+        {
+            await DevelopmentSeed.EnsureSeedAsync(db, CancellationToken.None);
+        }
     }
-    else
+    
+    app.UseExceptionHandler(errorApp =>
     {
-        await db.Database.EnsureCreatedAsync();
-    }
-
-    await DatabaseStartupValidator.ValidateAsync(db, app.Logger, CancellationToken.None);
->>>>>>> abd55b3 (fixes)
-
-    if (app.Environment.IsDevelopment())
-    {
-        await DevelopmentSeed.EnsureSeedAsync(db, CancellationToken.None);
-    }
-}
-
-app.UseExceptionHandler(errorApp =>
-{
-    errorApp.Run(async context =>
-    {
-        var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
-<<<<<<< HEAD
-=======
-        var traceId = context.TraceIdentifier;
-
-        if (exception is not null)
+        errorApp.Run(async context =>
         {
-            app.Logger.LogError(exception, "Unhandled exception for {Method} {Path}. TraceId: {TraceId}",
-                context.Request.Method,
-                context.Request.Path,
-                traceId);
-        }
->>>>>>> abd55b3 (fixes)
+            var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+            var traceId = context.TraceIdentifier;
 
-        if (exception is DomainException domainException)
-        {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-<<<<<<< HEAD
-            await context.Response.WriteAsJsonAsync(new { error = domainException.Message });
-=======
-            await context.Response.WriteAsJsonAsync(new { error = domainException.Message, traceId });
-            return;
-        }
+            if (exception is not null)
+            {
+                app.Logger.LogError(exception, "Unhandled exception for {Method} {Path}. TraceId: {TraceId}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    traceId);
+            }
+            var (statusCode, title, detail) = exception switch
+            {
+                DomainException domainException => (
+                    StatusCodes.Status400BadRequest,
+                    "Bad Request",
+                    domainException.Message),
+                UnauthorizedAccessException unauthorizedException => (
+                    StatusCodes.Status401Unauthorized,
+                    "Unauthorized",
+                    unauthorizedException.Message),
+                KeyNotFoundException notFoundException => (
+                    StatusCodes.Status404NotFound,
+                    "Not Found",
+                    notFoundException.Message),
+                PostgresException postgresException when
+                    postgresException.SqlState == PostgresErrorCodes.ForeignKeyViolation ||
+                    postgresException.SqlState == PostgresErrorCodes.CheckViolation ||
+                    postgresException.SqlState == PostgresErrorCodes.NotNullViolation => (
+                    StatusCodes.Status400BadRequest,
+                    "Bad Request",
+                    "Invalid request data."),
+                DbUpdateException dbUpdateException when
+                    dbUpdateException.InnerException is PostgresException updatePostgresException &&
+                    (updatePostgresException.SqlState == PostgresErrorCodes.ForeignKeyViolation ||
+                     updatePostgresException.SqlState == PostgresErrorCodes.CheckViolation ||
+                     updatePostgresException.SqlState == PostgresErrorCodes.NotNullViolation) => (
+                    StatusCodes.Status400BadRequest,
+                    "Bad Request",
+                    "Invalid request data."),
+                DbUpdateException => (
+                    StatusCodes.Status500InternalServerError,
+                    "Database Update Failed",
+                    "Database update failed."),
+                PostgresException => (
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Database Operation Failed",
+                    "Database operation failed."),
+                _ => (
+                    StatusCodes.Status500InternalServerError,
+                    "Internal Server Error",
+                    "An unexpected error occurred.")
+            };
 
-        if (exception is UnauthorizedAccessException unauthorizedException)
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = unauthorizedException.Message, traceId });
-            return;
-        }
+            context.Response.StatusCode = statusCode;
 
-        if (exception is PostgresException postgresException)
-        {
-            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            var problemDetails = new ProblemDetails
+            {
+                Status = statusCode,
+                Title = title,
+                Detail = detail,
+                Type = $"https://httpstatuses.com/{statusCode}",
+                Instance = context.Request.Path
+            };
 
-            var message = app.Environment.IsDevelopment()
-                ? $"Database error ({postgresException.SqlState}): {postgresException.MessageText}"
-                : "Database operation failed.";
+            problemDetails.Extensions["traceId"] = traceId;
 
-            await context.Response.WriteAsJsonAsync(new { error = message, traceId });
->>>>>>> abd55b3 (fixes)
-            return;
-        }
-
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-<<<<<<< HEAD
-        await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
-=======
-        await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred.", traceId });
->>>>>>> abd55b3 (fixes)
+            await context.Response.WriteAsJsonAsync(problemDetails);
+        });
     });
-});
-
-app.UseSwagger();
-app.UseSwaggerUI();
-
-app.UseCors("frontend");
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();
+    
+    app.UseSwagger();
+    app.UseSwaggerUI();
+    
+    app.UseStaticFiles();
+    app.UseCors("frontend");
+    app.UseAuthentication();
+    app.UseAuthorization();
+    
+    app.MapControllers();
+    
+    app.Run();
+}

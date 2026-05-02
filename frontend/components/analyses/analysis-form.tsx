@@ -1,12 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateTime } from "@/lib/utils";
 import type { AnalysisCategory, UpsertAnalysisInput } from "@/types/analysis";
+import type { Incident } from "@/types/incident";
 
 const schema = z.object({
   incidentId: z.string().uuid("Incident id must be a valid UUID"),
@@ -16,29 +18,49 @@ const schema = z.object({
   cause4: z.string().optional(),
   cause5: z.string().optional(),
   category: z.enum([
-    "human",
-    "machine",
-    "method",
-    "material",
-    "measurement",
-    "environment",
-    "management",
-    "other"
+    "Human",
+    "Machine",
+    "Method",
+    "Material",
+    "Measurement",
+    "Environment",
+    "Management",
+    "Other"
   ]),
-  fishboneJson: z.string().optional()
+  fishboneJson: z
+    .string()
+    .optional()
+    .refine((value) => {
+      const trimmed = value?.trim();
+      if (!trimmed) {
+        return true;
+      }
+
+      try {
+        JSON.parse(trimmed);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Fishbone JSON must be valid JSON")
 });
 
 type FormValues = z.infer<typeof schema>;
 
 interface AnalysisFormProps {
   onSubmit: (payload: UpsertAnalysisInput) => Promise<void>;
+  incidents: Incident[];
+  isLoadingIncidents?: boolean;
 }
 
-export function AnalysisForm({ onSubmit }: AnalysisFormProps) {
+export function AnalysisForm({ onSubmit, incidents, isLoadingIncidents = false }: AnalysisFormProps) {
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    getValues,
+    watch,
     formState: { errors, isSubmitting }
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -49,12 +71,21 @@ export function AnalysisForm({ onSubmit }: AnalysisFormProps) {
       cause3: "",
       cause4: "",
       cause5: "",
-      category: "human",
+      category: "Human",
       fishboneJson: ""
     }
   });
 
+  useEffect(() => {
+    const selectedIncidentId = getValues("incidentId");
+    if (!selectedIncidentId && incidents.length > 0) {
+      setValue("incidentId", incidents[0].id, { shouldValidate: true });
+    }
+  }, [getValues, incidents, setValue]);
+
   const submit = handleSubmit(async (values) => {
+    const selectedIncidentId = values.incidentId;
+
     await onSubmit({
       incidentId: values.incidentId,
       cause1: values.cause1,
@@ -63,19 +94,48 @@ export function AnalysisForm({ onSubmit }: AnalysisFormProps) {
       cause4: values.cause4,
       cause5: values.cause5,
       category: values.category as AnalysisCategory,
-      fishboneJson: values.fishboneJson
+      fishboneJson: values.fishboneJson?.trim() ? values.fishboneJson.trim() : undefined
     });
 
-    reset();
+    reset({
+      incidentId: selectedIncidentId,
+      cause1: "",
+      cause2: "",
+      cause3: "",
+      cause4: "",
+      cause5: "",
+      category: "Human",
+      fishboneJson: ""
+    });
   });
+
+  const selectedIncidentId = watch("incidentId");
 
   return (
     <form className="grid gap-3" onSubmit={submit}>
       <div className="grid gap-1">
         <label className="text-sm text-ink" htmlFor="incidentId">
-          Incident ID
+          Incident
         </label>
-        <Input id="incidentId" {...register("incidentId")} />
+        <select
+          id="incidentId"
+          className="h-11 rounded-xl border border-border bg-white px-3 text-sm"
+          {...register("incidentId")}
+          disabled={isSubmitting || isLoadingIncidents || incidents.length === 0}
+        >
+          {incidents.length === 0 ? (
+            <option value="">{isLoadingIncidents ? "Loading incidents..." : "No incidents available"}</option>
+          ) : (
+            incidents.map((incident) => (
+              <option key={incident.id} value={incident.id}>
+                {incident.type} - {formatDateTime(incident.occurredAt)} - {(incident.description ?? "No description").slice(0, 64)}
+              </option>
+            ))
+          )}
+        </select>
+        {incidents.length > 0 ? (
+          <p className="text-xs text-muted">Incident ID: {selectedIncidentId || incidents[0].id}</p>
+        ) : null}
         {errors.incidentId ? <p className="text-xs text-danger">{errors.incidentId.message}</p> : null}
       </div>
 
@@ -103,14 +163,14 @@ export function AnalysisForm({ onSubmit }: AnalysisFormProps) {
           className="h-11 rounded-xl border border-border bg-white px-3 text-sm"
           {...register("category")}
         >
-          <option value="human">Human</option>
-          <option value="machine">Machine</option>
-          <option value="method">Method</option>
-          <option value="material">Material</option>
-          <option value="measurement">Measurement</option>
-          <option value="environment">Environment</option>
-          <option value="management">Management</option>
-          <option value="other">Other</option>
+          <option value="Human">Human</option>
+          <option value="Machine">Machine</option>
+          <option value="Method">Method</option>
+          <option value="Material">Material</option>
+          <option value="Measurement">Measurement</option>
+          <option value="Environment">Environment</option>
+          <option value="Management">Management</option>
+          <option value="Other">Other</option>
         </select>
       </div>
 
@@ -119,9 +179,10 @@ export function AnalysisForm({ onSubmit }: AnalysisFormProps) {
           Fishbone JSON (optional)
         </label>
         <Textarea id="fishboneJson" {...register("fishboneJson")} />
+        {errors.fishboneJson ? <p className="text-xs text-danger">{errors.fishboneJson.message}</p> : null}
       </div>
 
-      <Button disabled={isSubmitting} type="submit">
+      <Button disabled={isSubmitting || isLoadingIncidents || incidents.length === 0} type="submit">
         {isSubmitting ? "Saving analysis..." : "Save Analysis"}
       </Button>
     </form>

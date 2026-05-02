@@ -38,7 +38,7 @@ public sealed class AnalysisService : IAnalysisService
 
         var incident = await _db.Incidents
             .SingleOrDefaultAsync(x => x.Id == incidentId, cancellationToken)
-            ?? throw new DomainException("Incident not found.");
+            ?? throw new KeyNotFoundException("Incident not found.");
 
         if (incident.IsDraft)
         {
@@ -107,7 +107,7 @@ public sealed class AnalysisService : IAnalysisService
 
         var analysis = await _db.RootCauseAnalyses
             .SingleOrDefaultAsync(x => x.Id == analysisId, cancellationToken)
-            ?? throw new DomainException("Analysis not found.");
+            ?? throw new KeyNotFoundException("Analysis not found.");
 
         var now = _timeProvider.GetUtcNow();
         var action = new CorrectiveAction
@@ -144,7 +144,7 @@ public sealed class AnalysisService : IAnalysisService
 
         var action = await _db.Actions
             .SingleOrDefaultAsync(x => x.Id == actionId, cancellationToken)
-            ?? throw new DomainException("Action not found.");
+            ?? throw new KeyNotFoundException("Action not found.");
 
         if (action.ResponsibleId != actor.UserId && actor.Role != UserRole.Manager && actor.Role != UserRole.Ohs)
         {
@@ -183,7 +183,7 @@ public sealed class AnalysisService : IAnalysisService
 
         var action = await _db.Actions
             .SingleOrDefaultAsync(x => x.Id == actionId, cancellationToken)
-            ?? throw new DomainException("Action not found.");
+            ?? throw new KeyNotFoundException("Action not found.");
 
         if (action.Status != ActionStatus.Completed)
         {
@@ -223,7 +223,7 @@ public sealed class AnalysisService : IAnalysisService
             .Include(x => x.RootCauseAnalysis)
             .ThenInclude(x => x!.Actions)
             .SingleOrDefaultAsync(x => x.Id == incidentId, cancellationToken)
-            ?? throw new DomainException("Incident not found.");
+            ?? throw new KeyNotFoundException("Incident not found.");
 
         if (incident.RootCauseAnalysis is null)
         {

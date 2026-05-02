@@ -1,12 +1,12 @@
 export type AnalysisCategory =
-  | "human"
-  | "machine"
-  | "method"
-  | "material"
-  | "measurement"
-  | "environment"
-  | "management"
-  | "other";
+  | "Human"
+  | "Machine"
+  | "Method"
+  | "Material"
+  | "Measurement"
+  | "Environment"
+  | "Management"
+  | "Other";
 
 export interface ActionItem {
   id: string;
@@ -14,7 +14,7 @@ export interface ActionItem {
   description: string;
   responsibleId: string;
   endDate: string;
-  status: "pending" | "completed";
+  status: "Pending" | "Completed";
   completedAt?: string;
   ohsApprovalAt?: string;
   createdAt: string;

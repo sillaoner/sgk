@@ -1,28 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
-<<<<<<< HEAD
-=======
 using Microsoft.Extensions.Logging;
->>>>>>> abd55b3 (fixes)
 using Ohs.Api.Contracts;
 
 namespace Ohs.Api.Services;
 
 public sealed class AesGcmHealthDataCrypto : IHealthDataCrypto
 {
-<<<<<<< HEAD
-    private readonly byte[] _key;
-    private readonly int _keyVersion;
-
-    public AesGcmHealthDataCrypto(IConfiguration configuration)
-    {
-        var keyBase64 = configuration["Encryption:CurrentKey"]
-            ?? throw new InvalidOperationException("Encryption:CurrentKey is missing.");
-
-        _key = Convert.FromBase64String(keyBase64);
-        _keyVersion = int.TryParse(configuration["Encryption:KeyVersion"], out var parsed) ? parsed : 1;
-=======
     private readonly byte[]? _key;
     private readonly int _keyVersion;
     private readonly ILogger<AesGcmHealthDataCrypto> _logger;
@@ -58,22 +43,17 @@ public sealed class AesGcmHealthDataCrypto : IHealthDataCrypto
             _logger.LogWarning(
                 "Encryption:CurrentKey is not valid base64. Health data encryption is disabled until a valid key is provided.");
         }
->>>>>>> abd55b3 (fixes)
     }
 
     public Task<HealthEncryptionResult> EncryptAsync(string plaintextJson, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-<<<<<<< HEAD
-=======
         if (_key is null)
         {
             throw new DomainException(
                 "Health data encryption key is not configured correctly. Please set a valid base64 Encryption:CurrentKey.");
         }
-
->>>>>>> abd55b3 (fixes)
         var plaintext = Encoding.UTF8.GetBytes(plaintextJson);
         var iv = RandomNumberGenerator.GetBytes(12);
         var ciphertext = new byte[plaintext.Length];

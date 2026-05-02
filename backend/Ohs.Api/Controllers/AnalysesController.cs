@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +26,8 @@ public sealed class AnalysesController : ControllerBase
     [Authorize(Roles = "supervisor,ohs,manager,hr")]
     public async Task<ActionResult<IReadOnlyCollection<RootCauseAnalysisDto>>> ListAnalyses(CancellationToken cancellationToken)
     {
+        _ = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+
         var analyses = await _db.RootCauseAnalyses
             .AsNoTracking()
             .Include(x => x.Actions)
@@ -69,7 +70,8 @@ public sealed class AnalysesController : ControllerBase
         [FromBody] UpsertRootCauseAnalysisRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _analysisService.UpsertAnalysisAsync(incidentId, request, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _analysisService.UpsertAnalysisAsync(incidentId, request, actor, cancellationToken);
         return Ok(result);
     }
 
@@ -80,7 +82,8 @@ public sealed class AnalysesController : ControllerBase
         [FromBody] CreateActionRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _analysisService.CreateActionAsync(analysisId, request, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _analysisService.CreateActionAsync(analysisId, request, actor, cancellationToken);
         return Ok(result);
     }
 
@@ -90,7 +93,8 @@ public sealed class AnalysesController : ControllerBase
         Guid actionId,
         CancellationToken cancellationToken)
     {
-        var result = await _analysisService.MarkActionCompletedAsync(actionId, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _analysisService.MarkActionCompletedAsync(actionId, actor, cancellationToken);
         return Ok(result);
     }
 
@@ -100,7 +104,8 @@ public sealed class AnalysesController : ControllerBase
         Guid actionId,
         CancellationToken cancellationToken)
     {
-        var result = await _analysisService.ApproveActionCompletionAsync(actionId, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _analysisService.ApproveActionCompletionAsync(actionId, actor, cancellationToken);
         return Ok(result);
     }
 
@@ -108,34 +113,8 @@ public sealed class AnalysesController : ControllerBase
     [Authorize(Roles = "ohs")]
     public async Task<IActionResult> CloseIncident(Guid incidentId, CancellationToken cancellationToken)
     {
-        await _analysisService.CloseIncidentIfReadyAsync(incidentId, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        await _analysisService.CloseIncidentIfReadyAsync(incidentId, actor, cancellationToken);
         return NoContent();
-    }
-
-    private UserContext BuildUserContext()
-    {
-        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue("sub")
-            ?? throw new UnauthorizedAccessException("Missing user id claim.");
-
-        var roleValue = User.FindFirstValue(ClaimTypes.Role)
-            ?? User.FindFirstValue("role")
-            ?? throw new UnauthorizedAccessException("Missing role claim.");
-
-        if (!Guid.TryParse(userIdValue, out var userId))
-        {
-            throw new UnauthorizedAccessException("User id claim is not a valid GUID.");
-        }
-
-        if (!Enum.TryParse<UserRole>(roleValue, ignoreCase: true, out var role))
-        {
-            throw new UnauthorizedAccessException("Role claim is not valid.");
-        }
-
-        return new UserContext(
-            userId,
-            role,
-            HttpContext.Connection.RemoteIpAddress?.ToString(),
-            Request.Headers["User-Agent"].ToString());
     }
 }

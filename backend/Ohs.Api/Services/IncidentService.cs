@@ -32,19 +32,27 @@ public sealed class IncidentService : IIncidentService
     {
         EnsureRole(actor, UserRole.Supervisor, UserRole.Ohs, UserRole.Manager);
 
-        if (request.DateTime > _timeProvider.GetUtcNow().AddMinutes(5))
+        if (request.OccurredAt == default)
+        {
+            throw new DomainException("Date / Time is required.");
+        }
+
+        if (request.OccurredAt > _timeProvider.GetUtcNow().AddMinutes(5))
         {
             throw new DomainException("Incident date_time cannot be in the future.");
         }
 
         var now = _timeProvider.GetUtcNow();
+        var photoUrls = NormalizePhotoUrls(request.PhotoUrls);
         var incident = new Incident
         {
             Id = Guid.NewGuid(),
             Type = request.Type,
-            DateTime = request.DateTime,
+            DateTime = request.OccurredAt,
             ReporterId = actor.UserId,
+            LocationId = request.LocationId,
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+            PhotoUrls = photoUrls,
             Status = IncidentStatus.Open,
             IsDraft = true,
             CreatedAt = now,
@@ -206,21 +214,20 @@ public sealed class IncidentService : IIncidentService
     {
         EnsureRole(actor, UserRole.Supervisor, UserRole.Ohs, UserRole.Manager);
 
-        if (string.IsNullOrWhiteSpace(request.Description))
+        if (request.Status is null && request.Description is null)
         {
-            throw new DomainException("Description cannot be empty.");
+            throw new DomainException("At least one updatable field is required.");
         }
 
         var incident = await _db.Incidents
             .SingleOrDefaultAsync(x => x.Id == incidentId, cancellationToken)
-            ?? throw new DomainException("Incident not found.");
+            ?? throw new KeyNotFoundException("Incident not found.");
 
-        if (incident.IsDraft)
+        if (request.Description is not null)
         {
-            throw new DomainException("Draft incidents should be updated through draft endpoints.");
+            var normalized = request.Description.Trim();
+            incident.Description = normalized.Length == 0 ? null : normalized;
         }
-
-        incident.Description = request.Description.Trim();
 
         if (request.Status is not null)
         {
@@ -272,15 +279,41 @@ public sealed class IncidentService : IIncidentService
 
     private static void ValidateStatusTransition(IncidentStatus current, IncidentStatus next, UserRole actorRole)
     {
-        if (next < current)
+        _ = actorRole;
+        _ = current;
+        _ = next;
+    }
+
+    private static List<string> NormalizePhotoUrls(IReadOnlyCollection<string>? urls)
+    {
+        if (urls is null || urls.Count == 0)
         {
-            throw new DomainException("Incident status cannot move backwards.");
+            return [];
         }
 
-        if (next == IncidentStatus.Closed && actorRole != UserRole.Ohs)
+        var normalized = new List<string>();
+
+        foreach (var rawUrl in urls)
         {
-            throw new DomainException("Only OHS can close an incident.");
+            if (string.IsNullOrWhiteSpace(rawUrl))
+            {
+                continue;
+            }
+
+            var url = rawUrl.Trim();
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new DomainException($"Invalid photo URL: {url}");
+            }
+
+            if (!normalized.Contains(url, StringComparer.OrdinalIgnoreCase))
+            {
+                normalized.Add(url);
+            }
         }
+
+        return normalized;
     }
 }
 

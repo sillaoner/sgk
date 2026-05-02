@@ -22,6 +22,8 @@ public sealed class DashboardController : ControllerBase
     [HttpGet("summary")]
     public async Task<ActionResult<DashboardSummaryDto>> GetSummary(CancellationToken cancellationToken)
     {
+        _ = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var totalIncidents = await _db.Incidents.CountAsync(cancellationToken);

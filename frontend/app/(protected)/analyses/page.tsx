@@ -8,26 +8,33 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/utils";
 import { analysisService } from "@/services/api/analysis-service";
+import { incidentService } from "@/services/api/incident-service";
 import type { RootCauseAnalysis } from "@/types/analysis";
+import type { Incident } from "@/types/incident";
 
 export default function AnalysesPage() {
   const [analyses, setAnalyses] = useState<RootCauseAnalysis[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingIncidents, setLoadingIncidents] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-<<<<<<< HEAD
-=======
     setLoading(true);
->>>>>>> abd55b3 (fixes)
+    setLoadingIncidents(true);
     try {
       setError(null);
-      const data = await analysisService.listAnalyses();
-      setAnalyses(data);
+      const [analysesData, incidentsData] = await Promise.all([
+        analysisService.listAnalyses(),
+        incidentService.listIncidents()
+      ]);
+      setAnalyses(analysesData);
+      setIncidents(incidentsData.filter((incident) => !incident.isDraft));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load analyses");
     } finally {
       setLoading(false);
+      setLoadingIncidents(false);
     }
   };
 
@@ -55,7 +62,7 @@ export default function AnalysesPage() {
 
       <Card>
         <h3 className="mb-3 text-lg font-semibold text-ink">Create / Update Analysis</h3>
-        <AnalysisForm onSubmit={onSubmit} />
+        <AnalysisForm onSubmit={onSubmit} incidents={incidents} isLoadingIncidents={loadingIncidents} />
       </Card>
 
       <Card>

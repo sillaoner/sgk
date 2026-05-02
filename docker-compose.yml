@@ -1,5 +1,5 @@
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
     container_name: ohs-db
     restart: unless-stopped
@@ -25,21 +25,14 @@ services:
     container_name: ohs-backend
     restart: unless-stopped
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__PostgreSql: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__PostgreSql: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Audience: ${JWT_AUDIENCE}
-<<<<<<< HEAD
-      Jwt__Key: ${JWT_KEY:-OHS_SUPER_SECURE_JWT_SECRET_2026_ULTRA_STRONG_KEY_123456}
-      JWT_ISSUER: ${JWT_ISSUER}
-      JWT_AUDIENCE: ${JWT_AUDIENCE}
-      JWT_KEY: ${JWT_KEY:-OHS_SUPER_SECURE_JWT_SECRET_2026_ULTRA_STRONG_KEY_123456}
-=======
       Jwt__SigningKey: ${JWT_SIGNING_KEY}
->>>>>>> abd55b3 (fixes)
       Encryption__CurrentKey: ${ENCRYPTION_CURRENT_KEY}
       Encryption__KeyVersion: ${ENCRYPTION_KEY_VERSION}
       Auth__DemoPassword: ${AUTH_DEMO_PASSWORD}
@@ -48,11 +41,6 @@ services:
       - "8080:8080"
 
   frontend:
-<<<<<<< HEAD
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-=======
     env_file:
       - ./.env
     build:
@@ -62,7 +50,6 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
         API_BASE_URL_INTERNAL: ${API_BASE_URL_INTERNAL}
         NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
->>>>>>> abd55b3 (fixes)
     container_name: ohs-frontend
     restart: unless-stopped
     depends_on:
@@ -70,10 +57,7 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
-<<<<<<< HEAD
-=======
       API_BASE_URL_INTERNAL: ${API_BASE_URL_INTERNAL}
->>>>>>> abd55b3 (fixes)
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
     ports:
       - "3000:3000"

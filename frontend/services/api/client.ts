@@ -1,16 +1,9 @@
 "use client";
 
-import axios, { type AxiosError, type AxiosRequestConfig } from "axios";
-<<<<<<< HEAD
-import { env } from "@/lib/env";
-import { enqueueMutation } from "@/services/offline/queue";
-import { useAuthStore } from "@/store/auth-store";
-
-const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"]);
-=======
+import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from "axios";
 import { getApiBaseUrl } from "@/lib/env";
 import { logout } from "@/services/auth/auth-utils";
-import { getToken, setToken } from "@/services/auth/token-storage";
+import { getToken } from "@/services/auth/token-storage";
 import { enqueueMutation } from "@/services/offline/queue";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -21,35 +14,20 @@ type ApiErrorPayload = {
   errors?: Record<string, string[] | string>;
 };
 
-type RefreshResponse = {
-  accessToken?: string;
-};
-
-type RetriableRequestConfig = AxiosRequestConfig & {
-  _retry?: boolean;
-};
-
 const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"]);
-let refreshPromise: Promise<string | null> | null = null;
 const API_DEBUG = process.env.NEXT_PUBLIC_AUTH_DEBUG === "true";
 const API_BASE_URL = getApiBaseUrl();
->>>>>>> abd55b3 (fixes)
 
-function isNetworkError(error: AxiosError) {
-  return error.code === "ERR_NETWORK" || !error.response;
-}
-
-<<<<<<< HEAD
-export const apiClient = axios.create({
-  baseURL: env.apiBaseUrl,
-  timeout: 10000,
-=======
 function debugLog(label: string, payload: unknown) {
   if (!API_DEBUG) {
     return;
   }
 
   console.log(`[api.debug] ${label}`, payload);
+}
+
+function isNetworkError(error: AxiosError) {
+  return error.code === "ERR_NETWORK" || !error.response;
 }
 
 function isAuthEndpoint(url?: string) {
@@ -78,6 +56,7 @@ function extractMessage(data: unknown): string | null {
   }
 
   const payload = data as ApiErrorPayload;
+
   if (typeof payload.error === "string" && payload.error.length > 0) {
     return payload.error;
   }
@@ -117,91 +96,75 @@ function extractMessage(data: unknown): string | null {
   return null;
 }
 
-function extractAccessToken(data: unknown): string | null {
-  if (typeof data === "string") {
-    try {
-      const parsed = JSON.parse(data) as RefreshResponse;
-      return typeof parsed.accessToken === "string" ? parsed.accessToken : null;
-    } catch {
-      return null;
+function toPlainHeaders(headers: AxiosRequestConfig["headers"]): Record<string, string> | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  if (typeof (headers as { toJSON?: () => unknown }).toJSON === "function") {
+    const json = (headers as { toJSON: () => unknown }).toJSON();
+    if (json && typeof json === "object" && !Array.isArray(json)) {
+      return Object.fromEntries(
+        Object.entries(json as Record<string, unknown>)
+          .filter((entry) => typeof entry[1] === "string")
+          .map(([key, value]) => [key, String(value)])
+      );
     }
   }
 
-  if (!data || typeof data !== "object") {
-    return null;
+  if (typeof headers === "object" && !Array.isArray(headers)) {
+    return Object.fromEntries(
+      Object.entries(headers as Record<string, unknown>)
+        .filter((entry) => typeof entry[1] === "string")
+        .map(([key, value]) => [key, String(value)])
+    );
   }
 
-  const payload = data as RefreshResponse;
-  return typeof payload.accessToken === "string" ? payload.accessToken : null;
+  return undefined;
 }
 
-async function refreshAccessToken() {
-  if (!refreshPromise) {
-    refreshPromise = authClient
-      .post<unknown>("/auth/refresh")
-      .then((response) => {
-        const token = extractAccessToken(response.data);
-        if (!token) {
-          return null;
-        }
-
-        setToken(token);
-        useAuthStore.setState((state) => ({
-          ...state,
-          token,
-          isAuthenticated: true
-        }));
-
-        return token;
-      })
-      .catch(() => null)
-      .finally(() => {
-        refreshPromise = null;
-      });
+function getHeaderValue(headers: AxiosRequestConfig["headers"], name: string): string | undefined {
+  if (!headers) {
+    return undefined;
   }
 
-  return refreshPromise;
+  const key = name.toLowerCase();
+
+  if (typeof (headers as { get?: (header: string) => unknown }).get === "function") {
+    const value = (headers as { get: (header: string) => unknown }).get(name);
+    return typeof value === "string" ? value : undefined;
+  }
+
+  if (typeof headers === "object" && !Array.isArray(headers)) {
+    const record = headers as Record<string, unknown>;
+    for (const [headerName, value] of Object.entries(record)) {
+      if (headerName.toLowerCase() === key && typeof value === "string") {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
 }
 
-function setAuthorizationHeader(config: AxiosRequestConfig, token: string) {
-  if (!config.headers) {
-    config.headers = {};
-  }
-
-  if (typeof (config.headers as { set?: (key: string, value: string) => void }).set === "function") {
-    (config.headers as { set: (key: string, value: string) => void }).set("Authorization", `Bearer ${token}`);
+function setAuthorizationHeader(config: InternalAxiosRequestConfig, token: string) {
+  if (typeof config.headers.set === "function") {
+    config.headers.set("Authorization", `Bearer ${token}`);
     return;
   }
 
   (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
 }
 
-export const authClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 15000,
-  headers: {
-    "Content-Type": "application/json"
-  }
-});
-
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
->>>>>>> abd55b3 (fixes)
   headers: {
     "Content-Type": "application/json"
   }
 });
 
 apiClient.interceptors.request.use((config) => {
-<<<<<<< HEAD
-  const token = useAuthStore.getState().token;
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-=======
   const token = getToken() ?? useAuthStore.getState().token;
   if (token) {
     setAuthorizationHeader(config, token);
@@ -214,16 +177,10 @@ apiClient.interceptors.request.use((config) => {
     hasAuthorization: Boolean(token)
   });
 
->>>>>>> abd55b3 (fixes)
   return config;
 });
 
 apiClient.interceptors.response.use(
-<<<<<<< HEAD
-  (response) => response,
-  async (error: AxiosError<{ error?: string; message?: string }>) => {
-    const config = error.config as AxiosRequestConfig | undefined;
-=======
   (response) => {
     debugLog("response", {
       status: response.status,
@@ -234,7 +191,7 @@ apiClient.interceptors.response.use(
 
     return response;
   },
-  async (error: AxiosError<ApiErrorPayload>) => {
+  (error: AxiosError<ApiErrorPayload>) => {
     debugLog("response_error", {
       status: error.response?.status,
       method: error.config?.method?.toUpperCase(),
@@ -244,57 +201,28 @@ apiClient.interceptors.response.use(
       data: error.response?.data
     });
 
-    const config = error.config as RetriableRequestConfig | undefined;
->>>>>>> abd55b3 (fixes)
+    const config = error.config;
     const method = config?.method?.toLowerCase();
+    const shouldSkipQueue = getHeaderValue(config?.headers, "X-Skip-Queue") === "1";
 
-    if (
-      config &&
-      method &&
-      MUTATION_METHODS.has(method) &&
-      isNetworkError(error) &&
-      config.headers?.["X-Skip-Queue"] !== "1"
-    ) {
-      enqueueMutation(config);
-<<<<<<< HEAD
+    if (config && method && MUTATION_METHODS.has(method) && isNetworkError(error) && !shouldSkipQueue) {
+      enqueueMutation({
+        method: config.method,
+        url: config.url,
+        data: config.data,
+        params: config.params,
+        headers: toPlainHeaders(config.headers)
+      });
 
-=======
->>>>>>> abd55b3 (fixes)
       return Promise.reject(new Error("No connection. Request saved and will sync automatically."));
     }
 
-    if (error.response?.status === 401) {
-<<<<<<< HEAD
-      useAuthStore.getState().clearSession();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
-    }
-
-    const message =
-      error.response?.data?.error ??
-      error.response?.data?.message ??
-=======
-      if (config && !config._retry && !isAuthEndpoint(config.url)) {
-        config._retry = true;
-        const refreshedToken = await refreshAccessToken();
-
-        if (refreshedToken) {
-          setAuthorizationHeader(config, refreshedToken);
-          return apiClient.request(config);
-        }
-      }
-
+    if (error.response?.status === 401 && !isAuthEndpoint(config?.url)) {
       logout({ redirectTo: "/login" });
       return Promise.reject(new Error("Session expired. Please sign in again."));
     }
 
-    const message =
-      extractMessage(error.response?.data) ??
->>>>>>> abd55b3 (fixes)
-      error.message ??
-      "Unexpected API error";
-
+    const message = extractMessage(error.response?.data) ?? error.message ?? "Unexpected API error";
     return Promise.reject(new Error(message));
   }
 );

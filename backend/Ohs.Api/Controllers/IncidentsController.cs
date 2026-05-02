@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +26,8 @@ public sealed class IncidentsController : ControllerBase
     [Authorize(Roles = "supervisor,ohs,manager,hr")]
     public async Task<ActionResult<IReadOnlyCollection<IncidentDto>>> ListIncidents(CancellationToken cancellationToken)
     {
+        _ = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+
         var incidents = await _db.Incidents
             .AsNoTracking()
             .OrderByDescending(x => x.DateTime)
@@ -51,10 +52,26 @@ public sealed class IncidentsController : ControllerBase
     [HttpPost("drafts")]
     [Authorize(Roles = "supervisor,ohs,manager")]
     public async Task<ActionResult<IncidentDto>> StartDraft(
-        [FromBody] CreateIncidentDraftRequest request,
+        [FromBody] CreateIncidentDraftRequest? request,
         CancellationToken cancellationToken)
     {
-        var result = await _incidentService.StartDraftAsync(request, BuildUserContext(), cancellationToken);
+        if (request is null)
+        {
+            return BadRequest(new { error = "Request body is required." });
+        }
+
+        if (!Enum.IsDefined(request.Type))
+        {
+            return BadRequest(new { error = "Type must be a valid enum name (NearMiss or Accident)." });
+        }
+
+        if (request.OccurredAt == default)
+        {
+            return BadRequest(new { error = "Date / Time is required." });
+        }
+
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _incidentService.StartDraftAsync(request, actor, cancellationToken);
         return Created($"/api/incidents/drafts/{result.Id}", result);
     }
 
@@ -65,7 +82,8 @@ public sealed class IncidentsController : ControllerBase
         [FromBody] UpdateIncidentDetailsRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _incidentService.UpdateDraftDetailsAsync(incidentId, request, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _incidentService.UpdateDraftDetailsAsync(incidentId, request, actor, cancellationToken);
         return Ok(result);
     }
 
@@ -76,7 +94,8 @@ public sealed class IncidentsController : ControllerBase
         [FromBody] AddIncidentPhotosRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _incidentService.AddDraftPhotosAsync(incidentId, request, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _incidentService.AddDraftPhotosAsync(incidentId, request, actor, cancellationToken);
         return Ok(result);
     }
 
@@ -84,7 +103,35 @@ public sealed class IncidentsController : ControllerBase
     [Authorize(Roles = "supervisor,ohs,manager")]
     public async Task<ActionResult<IncidentDto>> SubmitDraft(Guid incidentId, CancellationToken cancellationToken)
     {
-        var result = await _incidentService.SubmitDraftAsync(incidentId, BuildUserContext(), cancellationToken);
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _incidentService.SubmitDraftAsync(incidentId, actor, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPut("{incidentId:guid}/status")]
+    [Authorize(Roles = "supervisor,ohs,manager")]
+    public async Task<ActionResult<IncidentDto>> UpdateIncidentStatus(
+        Guid incidentId,
+        [FromBody] UpdateIncidentStatusRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Status))
+        {
+            return BadRequest(new { error = "Status is required." });
+        }
+
+        if (!TryParseIncidentStatus(request.Status, out var parsedStatus))
+        {
+            return BadRequest(new { error = "Status must be one of: Open, Analysis, Closed." });
+        }
+
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _incidentService.UpdateIncidentAsync(
+            incidentId,
+            new UpdateIncidentRequest { Status = parsedStatus },
+            actor,
+            cancellationToken);
+
         return Ok(result);
     }
 
@@ -92,37 +139,44 @@ public sealed class IncidentsController : ControllerBase
     [Authorize(Roles = "supervisor,ohs,manager")]
     public async Task<ActionResult<IncidentDto>> UpdateIncident(
         Guid incidentId,
-        [FromBody] UpdateIncidentRequest request,
+        [FromBody] UpdateIncidentApiRequest? request,
         CancellationToken cancellationToken)
     {
-        var result = await _incidentService.UpdateIncidentAsync(incidentId, request, BuildUserContext(), cancellationToken);
+        if (request is null)
+        {
+            return BadRequest(new { error = "Request body is required." });
+        }
+
+        IncidentStatus? parsedStatus = null;
+        if (request.Status is not null)
+        {
+            if (!TryParseIncidentStatus(request.Status, out var status))
+            {
+                return BadRequest(new { error = "Status must be one of: Open, Analysis, Closed." });
+            }
+
+            parsedStatus = status;
+        }
+
+        var actor = await this.BuildValidatedUserContextAsync(_db, cancellationToken);
+        var result = await _incidentService.UpdateIncidentAsync(
+            incidentId,
+            new UpdateIncidentRequest
+            {
+                Description = request.Description,
+                Status = parsedStatus
+            },
+            actor,
+            cancellationToken);
+
         return Ok(result);
     }
 
-    private UserContext BuildUserContext()
+    private static bool TryParseIncidentStatus(string rawStatus, out IncidentStatus status)
     {
-        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue("sub")
-            ?? throw new UnauthorizedAccessException("Missing user id claim.");
+        status = default;
 
-        var roleValue = User.FindFirstValue(ClaimTypes.Role)
-            ?? User.FindFirstValue("role")
-            ?? throw new UnauthorizedAccessException("Missing role claim.");
-
-        if (!Guid.TryParse(userIdValue, out var userId))
-        {
-            throw new UnauthorizedAccessException("User id claim is not a valid GUID.");
-        }
-
-        if (!Enum.TryParse<UserRole>(roleValue, ignoreCase: true, out var role))
-        {
-            throw new UnauthorizedAccessException("Role claim is not valid.");
-        }
-
-        return new UserContext(
-            userId,
-            role,
-            HttpContext.Connection.RemoteIpAddress?.ToString(),
-            Request.Headers["User-Agent"].ToString());
+        return Enum.TryParse(rawStatus, ignoreCase: false, out status)
+            && Enum.IsDefined(status);
     }
 }
