@@ -226,3 +226,17 @@ CREATE INDEX idx_legal_reports_type_period ON legal_reports(type, period);
 CREATE INDEX idx_access_logs_entity ON access_logs(entity_type, entity_id, created_at DESC);
 CREATE INDEX idx_access_logs_actor ON access_logs(actor_user_id, created_at DESC);
 CREATE INDEX idx_outbox_unpublished ON outbox_events(occurred_at) WHERE published_at IS NULL;
+
+-- ==================================
+-- EF Core migration history baseline
+-- ==================================
+CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+    migration_id VARCHAR(150) PRIMARY KEY,
+    product_version VARCHAR(32) NOT NULL
+);
+
+INSERT INTO "__EFMigrationsHistory" (migration_id, product_version)
+VALUES
+    ('20260502212253_InitialCreate', '8.0.8'),
+    ('20260502212302_AddIncidentAndAnalysis', '8.0.8')
+ON CONFLICT (migration_id) DO NOTHING;

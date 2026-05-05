@@ -14,8 +14,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MetalForm OHS",
-  description: "Occupational health and safety incident management panel"
+  title: "OHS Incident Management System",
+  description: "Occupational health and safety incident management system"
 };
 
 export default function RootLayout({

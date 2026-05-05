@@ -4,7 +4,7 @@
 # SGK
 =======
 >>>>>>> abd55b3 (fixes)
-# MetalForm OHS Platform
+# OHS Incident Management System
 
 Full-stack OHS incident management platform with:
 

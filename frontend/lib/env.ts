@@ -18,5 +18,5 @@ export const env = {
   apiBaseUrl: getApiBaseUrl(),
   browserApiBaseUrl,
   internalApiBaseUrl,
-  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "MetalForm OHS"
+  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "OHS Incident Management System"
 };

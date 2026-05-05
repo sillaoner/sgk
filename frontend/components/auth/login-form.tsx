@@ -49,8 +49,8 @@ export function LoginForm() {
 
   return (
     <Card className="mx-auto w-full max-w-md border-none bg-white/95 p-8 shadow-soft">
-      <h1 className="text-2xl font-semibold text-ink">Sign in to OHS Panel</h1>
-      <p className="mt-1 text-sm text-muted">Use your company account.</p>
+      <h1 className="text-2xl font-semibold text-ink">Sign in to OHS Incident Management System</h1>
+      <p className="mt-1 text-sm text-muted">Use your company account to continue.</p>
 
       <form className="mt-6 space-y-4" onSubmit={onSubmit}>
         <div>

@@ -102,18 +102,38 @@ if (!isEfDesignTime)
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<OhsDbContext>();
-        var migrations = db.Database.GetMigrations().ToList();
-
         await db.Database.CanConnectAsync();
+        var pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
 
-        if (migrations.Count > 0)
+        if (pendingMigrations.Count > 0)
         {
-            app.Logger.LogInformation("Applying {Count} database migrations at startup.", migrations.Count);
-            db.Database.Migrate();
-        }
-        else
-        {
-            await db.Database.EnsureCreatedAsync();
+            var appliedMigrations = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+            var hasUserTables = await db.Database
+                .SqlQueryRaw<bool>(
+                    """
+                    SELECT EXISTS (
+                      SELECT 1
+                      FROM information_schema.tables
+                      WHERE table_schema = 'public'
+                        AND table_type = 'BASE TABLE'
+                        AND table_name <> '__EFMigrationsHistory'
+                    ) AS "Value"
+                    """)
+                .SingleAsync();
+
+            if (appliedMigrations.Count == 0 && hasUserTables)
+            {
+                app.Logger.LogWarning(
+                    "Skipping automatic migrations because schema tables already exist but '__EFMigrationsHistory' is empty. " +
+                    "Baseline migration history manually before applying new EF migrations.");
+            }
+            else
+            {
+                app.Logger.LogInformation(
+                    "Applying {Count} pending database migrations at startup.",
+                    pendingMigrations.Count);
+                await db.Database.MigrateAsync();
+            }
         }
 
         await DatabaseStartupValidator.ValidateAsync(db, app.Logger, CancellationToken.None);

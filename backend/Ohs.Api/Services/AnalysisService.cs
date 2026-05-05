@@ -40,11 +40,6 @@ public sealed class AnalysisService : IAnalysisService
             .SingleOrDefaultAsync(x => x.Id == incidentId, cancellationToken)
             ?? throw new KeyNotFoundException("Incident not found.");
 
-        if (incident.IsDraft)
-        {
-            throw new DomainException("Draft incidents cannot enter analysis.");
-        }
-
         if (incident.Status == IncidentStatus.Closed)
         {
             throw new DomainException("Closed incidents cannot be modified.");
@@ -76,6 +71,13 @@ public sealed class AnalysisService : IAnalysisService
         analysis.FishboneJson = ParseFishbone(request.FishboneJson);
         analysis.AnalystId = actor.UserId;
         analysis.UpdatedAt = now;
+
+        if (incident.IsDraft &&
+            incident.LocationId is not null &&
+            !string.IsNullOrWhiteSpace(incident.Description))
+        {
+            incident.IsDraft = false;
+        }
 
         incident.Status = IncidentStatus.Analysis;
         incident.UpdatedAt = now;

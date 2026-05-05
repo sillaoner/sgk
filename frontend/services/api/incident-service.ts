@@ -106,6 +106,48 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
+function normalizeIncident(raw: unknown, index: number): Incident {
+  if (!isPlainObject(raw)) {
+    throw new Error(`Invalid incident payload at index ${index}.`);
+  }
+
+  const occurredAtRaw = typeof raw.occurredAt === "string"
+    ? raw.occurredAt
+    : typeof raw.dateTime === "string"
+      ? raw.dateTime
+      : null;
+
+  if (!occurredAtRaw) {
+    throw new Error(`Incident at index ${index} is missing occurredAt.`);
+  }
+
+  if (typeof raw.id !== "string" || raw.id.trim().length === 0) {
+    throw new Error(`Incident at index ${index} has an invalid id.`);
+  }
+
+  if (typeof raw.reporterId !== "string" || raw.reporterId.trim().length === 0) {
+    throw new Error(`Incident ${raw.id} has an invalid reporterId.`);
+  }
+
+  const photoUrls = Array.isArray(raw.photoUrls)
+    ? raw.photoUrls.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+
+  return {
+    id: raw.id,
+    type: normalizeIncidentType(raw.type),
+    occurredAt: occurredAtRaw,
+    locationId: typeof raw.locationId === "string" ? raw.locationId : undefined,
+    reporterId: raw.reporterId,
+    description: typeof raw.description === "string" ? raw.description : undefined,
+    status: normalizeIncidentStatus(raw.status),
+    isDraft: Boolean(raw.isDraft),
+    photoUrls,
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : occurredAtRaw,
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : occurredAtRaw
+  };
+}
+
 export const incidentService = {
   async listIncidents(): Promise<Incident[]> {
     try {
@@ -127,10 +169,13 @@ export const incidentService = {
         throw new Error(parseApiError(response.status, raw));
       }
 
-      const incidents = ensureArrayResponse<Incident>(await response.json(), "/incidents");
+      const payload = await response.json();
+      const rows = ensureArrayResponse<unknown>(payload, "/incidents");
+      const incidents = rows.map((row, index) => normalizeIncident(row, index));
 
       debugApiResponse("incidents.list.success", {
         status: response.status,
+        rawCount: rows.length,
         count: incidents.length
       });
 
@@ -207,7 +252,7 @@ export const incidentService = {
       throw new Error(parseApiError(response.status, raw));
     }
 
-    const incident = (await response.json()) as Incident;
+    const incident = normalizeIncident(await response.json(), 0);
     return incident;
   },
 
@@ -290,6 +335,6 @@ export const incidentService = {
       throw new Error(parseApiError(response.status, raw));
     }
 
-    return (await response.json()) as Incident;
+    return normalizeIncident(await response.json(), 0);
   }
 };

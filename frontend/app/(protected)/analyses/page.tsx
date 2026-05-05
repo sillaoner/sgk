@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/utils";
 import { analysisService } from "@/services/api/analysis-service";
 import { incidentService } from "@/services/api/incident-service";
+import { debugApiResponse } from "@/services/api/response-utils";
 import type { RootCauseAnalysis } from "@/types/analysis";
 import type { Incident } from "@/types/incident";
 
@@ -22,14 +23,42 @@ export default function AnalysesPage() {
   const load = async () => {
     setLoading(true);
     setLoadingIncidents(true);
+    setError(null);
+
     try {
-      setError(null);
-      const [analysesData, incidentsData] = await Promise.all([
+      const [analysesResult, incidentsResult] = await Promise.allSettled([
         analysisService.listAnalyses(),
         incidentService.listIncidents()
       ]);
-      setAnalyses(analysesData);
-      setIncidents(incidentsData.filter((incident) => !incident.isDraft));
+
+      const errors: string[] = [];
+
+      if (analysesResult.status === "fulfilled") {
+        setAnalyses(analysesResult.value);
+      } else {
+        setAnalyses([]);
+        errors.push(analysesResult.reason instanceof Error ? analysesResult.reason.message : "Could not load analyses");
+      }
+
+      if (incidentsResult.status === "fulfilled") {
+        const incidentsData = incidentsResult.value;
+        const eligibleIncidents = incidentsData.filter((incident) => incident.status !== "Closed");
+        setIncidents(eligibleIncidents);
+
+        debugApiResponse("analyses.incidents.loaded", {
+          total: incidentsData.length,
+          eligible: eligibleIncidents.length,
+          draftCount: incidentsData.filter((incident) => incident.isDraft).length,
+          closedCount: incidentsData.filter((incident) => incident.status === "Closed").length
+        });
+      } else {
+        setIncidents([]);
+        errors.push(incidentsResult.reason instanceof Error ? incidentsResult.reason.message : "Could not load incidents");
+      }
+
+      if (errors.length > 0) {
+        setError(errors.join(" | "));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load analyses");
     } finally {
